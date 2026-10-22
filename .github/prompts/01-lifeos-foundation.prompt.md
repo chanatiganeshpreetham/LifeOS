@@ -10,7 +10,7 @@ Implement the LifeOS project foundation only. First inspect the workspace and re
 Scope:
 - Establish a maintainable React 18 + TypeScript web client using currently maintained, security-patched Vite and Tailwind releases, responsive from 375px upward, with React Router and TanStack Query. If source documents pin a vulnerable version, prefer the closest secure compatible release and document the deviation.
 - Establish a Python 3.12 FastAPI backend using Pydantic v2, SQLAlchemy 2 in sync mode for Phase 1, Alembic, PostgreSQL 16, and a cleanly separated service/repository structure.
-- Add Docker Compose local development services for the API, PostgreSQL, and Redis; include Celery worker/beat only if required by the approved architecture and ensure they are usable locally.
+- Add Docker Compose local development services for the API and optional local email testing. Use the configured Prisma Postgres database directly; do not add a local PostgreSQL, Redis, or Celery service.
 - Add safe configuration loading with `.env.example`, a minimal health endpoint, an initial empty Alembic migration setup, and focused CI for Python lint/test and frontend lint/test/build.
 - Add only foundation-level shared layout, responsive shell, and API wiring needed to prove the client talks to the backend. Do not implement product modules or real authentication yet.
 

@@ -1,5 +1,5 @@
-import { Link, Navigate, Route, Routes } from 'react-router-dom'
-import { useState } from 'react'
+import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
+import { useEffect, useRef, useState } from 'react'
 import { ApiHealthStatus } from './components/ApiHealthStatus'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/context'
@@ -156,12 +156,41 @@ function NotFoundPage() {
   )
 }
 
-function AppRoutes() {
+export function AppNavigation() {
   const { user } = useAuth()
+  const location = useLocation()
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const menuTriggerRef = useRef<HTMLButtonElement>(null)
+  const menuCloseRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    setIsMobileMenuOpen(false)
+  }, [location.pathname])
+
+  useEffect(() => {
+    if (!isMobileMenuOpen) return
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setIsMobileMenuOpen(false)
+        menuTriggerRef.current?.focus()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    menuCloseRef.current?.focus()
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isMobileMenuOpen])
+
+  function closeMobileMenu() {
+    setIsMobileMenuOpen(false)
+    menuTriggerRef.current?.focus()
+  }
+
   return (
-    <div className="app-shell min-h-screen">
+    <>
       <header className="topbar">
-        <Link aria-label="LifeOS home" className="brand" to="/">
+        <Link aria-label="LifeOS home" className="brand brand-desktop" to="/">
           <img alt="" aria-hidden="true" className="brand-mark" src="/lifeos-mark.png" />
           <span>LifeOS</span>
         </Link>
@@ -174,11 +203,96 @@ function AppRoutes() {
             <Link className="topbar-link" to="/health">Health</Link>
             <Link className="topbar-link" to="/notes">Notes</Link>
             <Link className="topbar-link" to="/daybook">Daybook</Link>
-            <NotificationsBell />
           </nav>
         )}
+        {user ? (
+          <button
+            aria-controls="mobile-navigation"
+            aria-expanded={isMobileMenuOpen}
+            aria-label="Open LifeOS menu"
+            className="brand brand-menu-trigger"
+            onClick={() => setIsMobileMenuOpen(true)}
+            ref={menuTriggerRef}
+            type="button"
+          >
+            <img alt="" aria-hidden="true" className="brand-mark" src="/lifeos-mark.png" />
+            <span>LifeOS</span>
+            <span aria-hidden="true" className="menu-chevron">⌄</span>
+          </button>
+        ) : (
+          <Link aria-label="LifeOS home" className="brand brand-mobile-home" to="/">
+            <img alt="" aria-hidden="true" className="brand-mark" src="/lifeos-mark.png" />
+            <span>LifeOS</span>
+          </Link>
+        )}
+        {user && <NotificationsBell />}
         <span className="topbar-label">Your personal space</span>
       </header>
+      {user && isMobileMenuOpen && (
+        <div className="mobile-nav-overlay">
+          <button
+            aria-label="Close navigation"
+            className="mobile-nav-backdrop"
+            onClick={closeMobileMenu}
+            tabIndex={-1}
+            type="button"
+          />
+          <aside
+            aria-modal="true"
+            className="mobile-nav-panel"
+            id="mobile-navigation"
+            aria-labelledby="mobile-nav-title"
+            role="dialog"
+          >
+            <div className="mobile-nav-heading">
+              <div>
+                <p className="eyebrow">Your personal space</p>
+                <h2 id="mobile-nav-title">Explore LifeOS</h2>
+              </div>
+              <button
+                aria-label="Close navigation"
+                className="mobile-nav-close"
+                onClick={closeMobileMenu}
+                ref={menuCloseRef}
+                type="button"
+              >
+                ×
+              </button>
+            </div>
+            <nav aria-label="Mobile navigation" className="mobile-nav-links">
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/today">
+                <span aria-hidden="true">⌂</span><span>Today</span>
+              </NavLink>
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/tasks">
+                <span aria-hidden="true">✓</span><span>Tasks</span>
+              </NavLink>
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/reminders">
+                <span aria-hidden="true">◷</span><span>Reminders</span>
+              </NavLink>
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/finance">
+                <span aria-hidden="true">₹</span><span>Finance</span>
+              </NavLink>
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/health">
+                <span aria-hidden="true">♡</span><span>Health</span>
+              </NavLink>
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/notes">
+                <span aria-hidden="true">✎</span><span>Notes</span>
+              </NavLink>
+              <NavLink className="mobile-nav-link" onClick={closeMobileMenu} to="/daybook">
+                <span aria-hidden="true">▦</span><span>Daybook</span>
+              </NavLink>
+            </nav>
+          </aside>
+        </div>
+      )}
+    </>
+  )
+}
+
+function AppRoutes() {
+  return (
+    <div className="app-shell min-h-screen">
+      <AppNavigation />
       <Routes>
         <Route element={<HomePage />} path="/" />
         <Route element={<LoginPage />} path="/login" />

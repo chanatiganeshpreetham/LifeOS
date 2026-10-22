@@ -63,15 +63,3 @@ def create_user_notification(
     session.add(push_notification)
     session.flush()
     return push_notification.id
-
-
-def enqueue_push_notification(notification_id: UUID) -> None:
-    try:
-        from app.workers.reminder_tasks import deliver_push_notification
-
-        deliver_push_notification.delay(str(notification_id))
-    except Exception:
-        logger.exception(
-            "Could not enqueue push notification %s; the pending notification will be retried",
-            notification_id,
-        )

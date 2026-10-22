@@ -15,10 +15,11 @@ from app.models import User
 from app.models.reminder import NotificationLog, PushSubscription, Reminder
 from app.repositories import reminders as reminder_repository
 from app.schemas.reminder import ReminderCreate, ReminderUpdate
-from app.services.notifications import create_user_notification, enqueue_push_notification
+from app.services.notifications import create_user_notification
 
 logger = logging.getLogger(__name__)
 _WEEKDAYS = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+_PUSH_BATCH_SIZE = 100
 
 
 def _now() -> datetime:
@@ -436,12 +437,17 @@ def deliver_due_reminders(session: Session) -> int:
 
     push_ids.extend(
         notification.id
-        for notification in reminder_repository.list_pending_push_notifications(session, limit=100)
+        for notification in reminder_repository.list_pending_push_notifications(
+            session, limit=_PUSH_BATCH_SIZE
+        )
         if notification.id not in push_ids
     )
     session.commit()
     for notification_id in push_ids:
-        enqueue_push_notification(notification_id)
+        try:
+            send_push_notification(session, notification_id)
+        except Exception:
+            logger.exception("Could not deliver push notification %s", notification_id)
     return processed
 
 

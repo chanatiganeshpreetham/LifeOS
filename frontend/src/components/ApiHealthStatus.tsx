@@ -11,8 +11,15 @@ export function ApiHealthStatus() {
   const checks: { name: string; status: 'ok' | 'error' | 'loading' | 'unknown' }[] = [
     { name: 'Frontend → API', status: data ? 'ok' : error ? 'error' : 'loading' },
     { name: 'Backend API', status: data?.checks.backend.status ?? (error ? 'error' : 'loading') },
-    { name: 'Database', status: data?.checks.database.status ?? (error ? 'unknown' : 'loading') },
+    {
+      name: 'Prisma Postgres',
+      status: data?.checks.database.status ?? (error ? 'unknown' : 'loading'),
+    },
     { name: 'Auth0', status: data?.checks.auth0.status ?? (error ? 'unknown' : 'loading') },
+    {
+      name: 'Scheduled jobs',
+      status: data?.checks.background_tasks.scheduler.status ?? (error ? 'unknown' : 'loading'),
+    },
   ]
 
   return (

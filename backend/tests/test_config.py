@@ -14,7 +14,6 @@ def test_production_accepts_explicit_configuration() -> None:
         _env_file=None,
         environment="production",
         database_url="postgresql+psycopg://user:password@db.example.com/lifeos",
-        redis_url="redis://redis.example.com:6379/0",
         secret_key=SecretStr("a-production-secret-value-that-is-long-enough"),
         frontend_url="https://lifeos.example.com",
         auth0_domain="tenant.example.com",

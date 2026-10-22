@@ -28,7 +28,7 @@ from app.schemas.finance import (
     FinanceEntryCreate,
     MonthlyPlanInput,
 )
-from app.services.notifications import create_user_notification, enqueue_push_notification
+from app.services.notifications import create_user_notification
 
 ZERO = Decimal("0.00")
 logger = logging.getLogger(__name__)
@@ -113,7 +113,7 @@ def _budget_spent(session: Session, user_id: UUID, budget: Budget) -> Decimal:
     )
 
 
-def _check_budget_notifications(session: Session, user_id: UUID, expense: Expense) -> list[UUID]:
+def _check_budget_notifications(session: Session, user_id: UUID, expense: Expense) -> None:
     budgets = list(
         session.scalars(
             select(Budget).where(
@@ -124,11 +124,10 @@ def _check_budget_notifications(session: Session, user_id: UUID, expense: Expens
             )
         )
     )
-    return _check_budget_thresholds(session, user_id, budgets)
+    _check_budget_thresholds(session, user_id, budgets)
 
 
-def _check_budget_thresholds(session: Session, user_id: UUID, budgets: list[Budget]) -> list[UUID]:
-    push_ids = []
+def _check_budget_thresholds(session: Session, user_id: UUID, budgets: list[Budget]) -> None:
     for budget in budgets:
         spent = _budget_spent(session, user_id, budget)
         for threshold, field in (
@@ -137,7 +136,7 @@ def _check_budget_thresholds(session: Session, user_id: UUID, budgets: list[Budg
         ):
             if spent >= budget.monthly_limit * threshold and not getattr(budget, field):
                 percent = int(threshold * 100)
-                notification_id = create_user_notification(
+                create_user_notification(
                     session,
                     user_id,
                     "budget_alert",
@@ -147,16 +146,7 @@ def _check_budget_thresholds(session: Session, user_id: UUID, budgets: list[Budg
                     ),
                     f"budget:{budget.id}:{percent}",
                 )
-                if notification_id:
-                    push_ids.append(notification_id)
                 setattr(budget, field, True)
-    return push_ids
-
-
-def _save_and_enqueue(session: Session, push_ids: list[UUID]) -> None:
-    session.commit()
-    for notification_id in push_ids:
-        enqueue_push_notification(notification_id)
 
 
 def create_expense(session: Session, user: User, payload: ExpenseCreate) -> Expense:
@@ -166,8 +156,8 @@ def create_expense(session: Session, user: User, payload: ExpenseCreate) -> Expe
     expense = Expense(user_id=user.id, **payload.model_dump())
     session.add(expense)
     session.flush()
-    push_ids = _check_budget_notifications(session, user.id, expense)
-    _save_and_enqueue(session, push_ids)
+    _check_budget_notifications(session, user.id, expense)
+    session.commit()
     session.refresh(expense)
     return expense
 
@@ -192,8 +182,8 @@ def update_expense(
     for key, value in changes.items():
         setattr(expense, key, value)
     session.flush()
-    push_ids = _check_budget_notifications(session, user.id, expense)
-    _save_and_enqueue(session, push_ids)
+    _check_budget_notifications(session, user.id, expense)
+    session.commit()
     session.refresh(expense)
     return expense
 
@@ -262,8 +252,8 @@ def upsert_budget(session: Session, user: User, payload: BudgetCreate) -> Budget
     else:
         budget.monthly_limit = payload.monthly_limit
     session.flush()
-    push_ids = _check_budget_thresholds(session, user.id, [budget])
-    _save_and_enqueue(session, push_ids)
+    _check_budget_thresholds(session, user.id, [budget])
+    session.commit()
     session.refresh(budget)
     return budget
 
@@ -597,7 +587,6 @@ def dispatch_finance_alerts(session: Session, now: datetime) -> int:
             )
         )
     )
-    pushed: list[UUID] = []
     notified = 0
     for card in cards:
         user = session.get(User, card.user_id)
@@ -643,10 +632,7 @@ def dispatch_finance_alerts(session: Session, now: datetime) -> int:
             f"card:{card.id}:{due:%Y-%m}:{threshold}",
         )
         if notification_id:
-            pushed.append(notification_id)
             notified += 1
         setattr(card, alert_field, True)
     session.commit()
-    for notification_id in pushed:
-        enqueue_push_notification(notification_id)
     return notified

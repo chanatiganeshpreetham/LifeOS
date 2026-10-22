@@ -7,8 +7,12 @@ const healthyResponse = {
   status: 'ok',
   checks: {
     backend: { status: 'ok' },
-    database: { status: 'ok' },
+    database: { status: 'ok', provider: 'prisma_postgres' },
     auth0: { status: 'ok' },
+    background_tasks: {
+      status: 'ok',
+      scheduler: { status: 'ok' },
+    },
   },
 }
 
@@ -50,8 +54,9 @@ describe('ApiHealthStatus', () => {
 
     expect(await screen.findByText('Frontend → API: Connected')).toBeInTheDocument()
     expect(await screen.findByText('Backend API: Connected')).toBeInTheDocument()
-    expect(await screen.findByText('Database: Connected')).toBeInTheDocument()
+    expect(await screen.findByText('Prisma Postgres: Connected')).toBeInTheDocument()
     expect(await screen.findByText('Auth0: Connected')).toBeInTheDocument()
+    expect(await screen.findByText('Scheduled jobs: Connected')).toBeInTheDocument()
   })
 
   it('reports unavailable dependencies when a health check is degraded', async () => {
@@ -64,7 +69,7 @@ describe('ApiHealthStatus', () => {
           status: 'degraded',
           checks: {
             ...healthyResponse.checks,
-            database: { status: 'error' },
+            database: { status: 'error', provider: 'prisma_postgres' },
           },
         }),
       }),
@@ -72,7 +77,7 @@ describe('ApiHealthStatus', () => {
 
     renderStatus()
 
-    expect(await screen.findByText('Database: Unavailable')).toBeInTheDocument()
+    expect(await screen.findByText('Prisma Postgres: Unavailable')).toBeInTheDocument()
     expect(screen.getByText('One or more backend services are unavailable.')).toBeInTheDocument()
   })
 

@@ -14,7 +14,8 @@ The frontend build-tool versions are newer than the original April 2025 architec
 
 - Frontend: React 18, TypeScript, Vite 6, Tailwind CSS 4, React Router 6, TanStack Query 5
 - Backend: Python 3.12, FastAPI, Pydantic 2, synchronous SQLAlchemy 2, Alembic, pure-Python pg8000 PostgreSQL driver
-- Services: PostgreSQL 16, Redis 7, Celery 5
+- Database: Prisma Postgres
+- Local email testing: Mailpit
 - Local development: Docker Compose
 
 ## Prerequisites
@@ -37,10 +38,11 @@ From the repository root in PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
+# Set DATABASE_URL in .env to your Prisma Postgres connection URL before continuing.
 docker compose up --build
 ```
 
-The API (which applies Alembic migrations at startup), PostgreSQL, Redis, Mailpit, Celery worker, and Celery beat services start in Compose. Run the frontend separately:
+The API (which applies Alembic migrations to the configured Prisma Postgres database at startup) and Mailpit for local email testing start in Compose. Scheduled reminders, finance alerts, and pending browser push notifications run inside the API process, so no Redis server or worker services are required. Run the frontend separately:
 
 ```powershell
 Copy-Item frontend\.env.example frontend\.env.local
@@ -53,9 +55,9 @@ The frontend is served at <http://localhost:5173>. The Vite development proxy fo
 
 The local app serves on `http://localhost:5173`. Auth0 Universal Login handles sign-in, sign-up, and password recovery. In the Auth0 application's settings, add `http://localhost:5173` to **Allowed Callback URLs**, **Allowed Logout URLs**, and **Allowed Web Origins**. Keep any other existing URLs in those fields; separate URLs with commas. Auth0 treats `localhost` and `127.0.0.1` as different callback URLs.
 
-The API health endpoint at `/api/v1/health` reports backend, database, and Auth0 OpenID configuration connectivity. The frontend health card also reports that the frontend is loaded and can reach the health endpoint.
+The API health endpoint at `/api/v1/health` reports backend, Prisma Postgres, Auth0 OpenID configuration, and the in-process scheduled-job status. Its database check fails if `DATABASE_URL` is not a Prisma Postgres host. The frontend health card also reports API and scheduled-job availability.
 
-The example `.env` values are for local development only. The backend needs `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_AUDIENCE`; the frontend needs `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, and `VITE_AUTH0_AUDIENCE`. The sample contains the current LifeOS Auth0 tenant's public configuration. Before production, configure non-default `SECRET_KEY`, `DATABASE_URL`, `REDIS_URL`, `FRONTEND_URL`, and `MAIL_HOST` values, and set production Auth0 callback/origin URLs. Never commit real `.env` files or secrets. If using an existing host PostgreSQL server, update `DATABASE_URL` in `.env` with a database role/password you control.
+The example `.env` values are for local development only. The backend needs `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_AUDIENCE`; the frontend needs `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, and `VITE_AUTH0_AUDIENCE`. The sample contains the current LifeOS Auth0 tenant's public configuration. Before production, configure non-default `SECRET_KEY`, `DATABASE_URL`, and `FRONTEND_URL` values, and set production Auth0 callback/origin URLs. Never commit real `.env` files or secrets.
 
 ## Authentication
 
@@ -118,27 +120,13 @@ GitHub Actions runs backend and frontend lint, tests, and the production fronten
 
 ## Current foundation boundary
 
-The API health endpoint confirms the FastAPI process is responding; it does not check PostgreSQL or Redis connectivity. The authenticated Today dashboard summarizes pending and upcoming tasks, upcoming reminders, server-computed daily and monthly spend against an available monthly budget, card due dates within 30 days, and mood, sleep, habits, and water data. It uses independent authenticated queries with per-widget loading, retry, and empty states; dashboard tasks can be quick-added. Dashboard refreshes its module summaries every 60 seconds. Subscriptions, nutrition, AI digest, and CRM are not delivered and are intentionally not represented. The task manager supports user-scoped task CRUD, completion, soft deletion, All/Today/Overdue/Completed filters, timezone-aware due dates, and PostgreSQL full-text search. Reminders support one-time and recurring schedules, in-app notifications, and optional browser push. Finance supports manual INR expenses, default and personal categories, monthly and yearly plan-versus-actual summaries, category budgets with 80%/100% alerts, CSV export, and basic credit-card profiles with due-date notifications. Health includes timezone-aware mood check-ins, sleep duration logging, daily habit streaks, and water tracking; notes include debounced autosave and PostgreSQL full-text search. Daybook provides a calendar and private, date-based diary entries alongside linked task, reminder, finance, health, and note activity; the activity feed reads source records instead of copying them and refreshes periodically. P2 details such as reminder snooze, health annotations/charts, note tags and pinning remain deferred from the approved P1-focused MVP.
+The authenticated Today dashboard summarizes pending and upcoming tasks, upcoming reminders, server-computed daily and monthly spend against an available monthly budget, card due dates within 30 days, and mood, sleep, habits, and water data. It uses independent authenticated queries with per-widget loading, retry, and empty states; dashboard tasks can be quick-added. Dashboard refreshes its module summaries every 60 seconds. Subscriptions, nutrition, AI digest, and CRM are not delivered and are intentionally not represented. The task manager supports user-scoped task CRUD, completion, soft deletion, All/Today/Overdue/Completed filters, timezone-aware due dates, and PostgreSQL full-text search. Reminders support one-time and recurring schedules, in-app notifications, and optional browser push. Finance supports manual INR expenses, default and personal categories, monthly and yearly plan-versus-actual summaries, category budgets with 80%/100% alerts, CSV export, and basic credit-card profiles with due-date notifications. Health includes timezone-aware mood check-ins, sleep duration logging, daily habit streaks, and water tracking; notes include debounced autosave and PostgreSQL full-text search. Daybook provides a calendar and private, date-based diary entries alongside linked task, reminder, finance, health, and note activity; the activity feed reads source records instead of copying them and refreshes periodically. P2 details such as reminder snooze, health annotations/charts, note tags and pinning remain deferred from the approved P1-focused MVP.
 
 The task API is available under `/api/v1/tasks` (including `/dashboard` for compact dashboard task summaries); reminders and notification APIs are under `/api/v1/reminders` (including `/reminders/dashboard`), `/api/v1/notifications`, and `/api/v1/push`. Finance APIs are under `/api/v1/finance` (including `/dashboard-summary` for daily/monthly spend and upcoming card due dates); health tracking is under `/api/v1/health`, notes are under `/api/v1/notes`, and Daybook is under `/api/v1/daybook` (date-bounded activity feed plus diary-entry CRUD). These endpoints require a bearer access token. Apply database migrations after configuring PostgreSQL; revisions `0003_tasks`, `0004_reminders_push`, `0005_finance`, `0006_health_notes`, `0008_daybook`, and `0009_dashboard_task_index` add the corresponding product tables, indexes, and notification types.
 
-### Local PostgreSQL database
+### Prisma Postgres
 
-The app uses a dedicated `lifeos` database and its default `public` schema. In **SQL Shell (psql)**, connect as a PostgreSQL administrator and run:
-
-```sql
-CREATE ROLE lifeos_app LOGIN;
-\password lifeos_app
-CREATE DATABASE lifeos OWNER lifeos_app;
-```
-
-`\password` prompts securely for the application role password; do not put the password into a SQL script or commit it. In the ignored project-root `.env`, set `DATABASE_URL` to the `lifeos_app` connection, for example:
-
-```text
-DATABASE_URL=postgresql+pg8000://lifeos_app:<URL-encoded-password>@127.0.0.1:5432/lifeos
-```
-
-URL-encode reserved characters in the password. Then, from PowerShell, apply the schema:
+Set `DATABASE_URL` in the ignored project-root `.env` to Prisma's direct PostgreSQL connection URL, including its `sslmode=require` option. URL-encode reserved characters in the username or password. Do not use a Prisma Accelerate `prisma://` URL. The API applies the schema on startup; to apply it manually:
 
 ```powershell
 Set-Location backend
@@ -147,19 +135,7 @@ Set-Location backend
 
 ### Reminder scheduler and browser push
 
-The Celery Beat schedule checks due reminders once per minute; the Celery worker records in-app notifications and sends push notifications when configured. Both require Redis at the `REDIS_URL` in `.env` (default `redis://localhost:6379/0`). Run the `worker` and `beat` services with Docker Compose, or run Celery worker and beat as separate processes after starting Redis. Without Redis/worker/beat, reminder CRUD and notification history APIs remain available, but scheduled deliveries do not run.
-
-For host-based development, once Redis is running, start these in separate PowerShell terminals from the project root:
-
-```powershell
-Set-Location backend
-..\.venv\Scripts\celery.exe -A app.workers.celery_app:celery_app worker --loglevel=info --pool=solo
-```
-
-```powershell
-Set-Location backend
-..\.venv\Scripts\celery.exe -A app.workers.celery_app:celery_app beat --loglevel=info
-```
+The API runs due reminders, finance alerts, and pending browser push notifications in a background loop once per minute. Keep one API process running for these schedules; running multiple API processes can process the same scheduled work more than once. The `/api/v1/health` endpoint marks scheduled jobs healthy after a successful cycle and reports an error if cycles keep failing.
 
 Browser push is optional. In development, `http://localhost` is a secure context for service workers. Generate VAPID values locally (the private value is secret):
 

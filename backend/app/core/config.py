@@ -7,14 +7,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 _DEVELOPMENT_SECRET = "development-only-secret-key-change-before-deployment"
 _DEVELOPMENT_DATABASE_URL = "postgresql+pg8000://lifeos:lifeos@localhost:5432/lifeos"
-_DEVELOPMENT_REDIS_URL = "redis://localhost:6379/0"
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 
 class Settings(BaseSettings):
     environment: Literal["development", "test", "production"] = "development"
     database_url: str = _DEVELOPMENT_DATABASE_URL
-    redis_url: str = _DEVELOPMENT_REDIS_URL
     secret_key: SecretStr = SecretStr(_DEVELOPMENT_SECRET)
     frontend_url: str = "http://localhost:5173"
     auth0_domain: str | None = None
@@ -45,8 +43,6 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must contain at least 32 characters in production")
             if self.database_url == _DEVELOPMENT_DATABASE_URL:
                 raise ValueError("DATABASE_URL must point to a production database")
-            if self.redis_url == _DEVELOPMENT_REDIS_URL:
-                raise ValueError("REDIS_URL must point to a production Redis instance")
             if self.frontend_url == "http://localhost:5173":
                 raise ValueError("FRONTEND_URL must be configured for production")
             if not self.auth0_domain or not self.auth0_client_id or not self.auth0_audience:

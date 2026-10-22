@@ -24,7 +24,7 @@ Treat the documents as the product source of truth, but call out conflicts inste
 Produce a concise but sufficiently detailed report with:
 1. What exists in the workspace and what is missing.
 2. Product scope and Phase 1 acceptance criteria, organized by module.
-3. The agreed technical baseline from the documents: React 18/Vite/Tailwind, mobile-responsive web, FastAPI/Python 3.12, SQLAlchemy 2, Alembic, PostgreSQL 16, Redis 7/Celery 5 as applicable, Docker Compose, and CI.
+3. The agreed technical baseline from the documents: React 18/Vite/Tailwind, mobile-responsive web, FastAPI/Python 3.12, SQLAlchemy 2, Alembic, Prisma Postgres, a simple in-process scheduler, Docker Compose, and CI.
 4. Important architecture/data/security invariants, including per-user data scoping, UUID keys, `NUMERIC(12,2)` money, ORM parameterization, migrations-only schema changes, no tokens in localStorage, explicit CORS, validation, and test expectations.
 5. Contradictions, ambiguities, and decisions that need the product owner’s answer. Rank them by impact and ask focused questions only where needed.
 6. A dependency-ordered, small-step implementation backlog with a verifiable definition of done for each step. Follow the architecture’s sequence: foundation, auth, tasks, reminders/push, finance and card dates, health/notes and the remaining approved Phase 1 modules, then dashboard integration and release hardening. Keep optional/later-phase work out.

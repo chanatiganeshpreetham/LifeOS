@@ -9,7 +9,7 @@ Implement reminders and browser push only, after the foundation and authenticati
 
 Deliver the approved Phase 1 behavior:
 - User-scoped reminder CRUD, one-time and documented recurring schedules, acknowledgement, and approved snooze intervals.
-- A scheduler/worker path for due reminders with correct timezone handling and duplicate-delivery protection.
+- An in-process API scheduler for due reminders with correct timezone handling and duplicate-delivery protection; avoid external brokers and worker services.
 - Web Push subscription registration and delivery using VAPID/pywebpush only when configured; permission denial or unsupported browsers must leave in-app reminders usable and show a clear state.
 - In-app notification list/bell, unread count, and mark-read behavior using the shared notification log model.
 - Responsive reminder and notification UI with loading, empty, error, and permission states.

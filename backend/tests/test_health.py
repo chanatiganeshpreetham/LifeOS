@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import httpx
+from sqlalchemy.engine import make_url
 
 from app.core import dependencies
 from app.main import app
@@ -31,8 +32,20 @@ def post(path: str, payload: dict[str, object]) -> httpx.Response:
 def test_health_check_reports_all_components(monkeypatch) -> None:
     from app.routers import health
 
-    monkeypatch.setattr(health, "_check_database", lambda: health.HealthComponent(status="ok"))
+    monkeypatch.setattr(
+        health,
+        "_check_database",
+        lambda: health.DatabaseHealthComponent(status="ok", provider="prisma_postgres"),
+    )
     monkeypatch.setattr(health, "_check_auth0", lambda: health.HealthComponent(status="ok"))
+    monkeypatch.setattr(
+        health,
+        "_check_background_tasks",
+        lambda: health.BackgroundTasksHealth(
+            status="ok",
+            scheduler=health.HealthComponent(status="ok"),
+        ),
+    )
 
     response = get("/api/v1/health")
 
@@ -41,8 +54,12 @@ def test_health_check_reports_all_components(monkeypatch) -> None:
         "status": "ok",
         "checks": {
             "backend": {"status": "ok"},
-            "database": {"status": "ok"},
+            "database": {"status": "ok", "provider": "prisma_postgres"},
             "auth0": {"status": "ok"},
+            "background_tasks": {
+                "status": "ok",
+                "scheduler": {"status": "ok"},
+            },
         },
     }
 
@@ -50,14 +67,95 @@ def test_health_check_reports_all_components(monkeypatch) -> None:
 def test_health_check_reports_degraded_dependencies(monkeypatch) -> None:
     from app.routers import health
 
-    monkeypatch.setattr(health, "_check_database", lambda: health.HealthComponent(status="error"))
+    monkeypatch.setattr(
+        health,
+        "_check_database",
+        lambda: health.DatabaseHealthComponent(status="error", provider="prisma_postgres"),
+    )
     monkeypatch.setattr(health, "_check_auth0", lambda: health.HealthComponent(status="ok"))
+    monkeypatch.setattr(
+        health,
+        "_check_background_tasks",
+        lambda: health.BackgroundTasksHealth(
+            status="ok",
+            scheduler=health.HealthComponent(status="ok"),
+        ),
+    )
 
     response = get("/api/v1/health")
 
     assert response.status_code == 200
     assert response.json()["status"] == "degraded"
-    assert response.json()["checks"]["database"] == {"status": "error"}
+    assert response.json()["checks"]["database"] == {
+        "status": "error",
+        "provider": "prisma_postgres",
+    }
+
+
+def test_database_health_refuses_non_prisma_host(monkeypatch) -> None:
+    from app.routers import health
+
+    monkeypatch.setattr(
+        health,
+        "engine",
+        SimpleNamespace(url=make_url("postgresql+pg8000://user:password@localhost/lifeos")),
+    )
+
+    result = health._check_database()
+
+    assert result == health.DatabaseHealthComponent(status="error", provider="other")
+
+
+def test_database_health_checks_prisma_host(monkeypatch) -> None:
+    from app.routers import health
+
+    calls: list[str] = []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def execute(self, statement):
+            calls.append(str(statement))
+
+    monkeypatch.setattr(
+        health,
+        "engine",
+        SimpleNamespace(
+            url=make_url("postgresql+pg8000://user:password@pooled.db.prisma.io/postgres"),
+            connect=Connection,
+        ),
+    )
+
+    result = health._check_database()
+
+    assert result == health.DatabaseHealthComponent(status="ok", provider="prisma_postgres")
+    assert calls == ["SELECT 1"]
+
+
+def test_background_task_health_checks_recent_scheduler_cycle(monkeypatch) -> None:
+    from app.routers import health
+
+    monkeypatch.setattr(health, "is_scheduler_healthy", lambda: True)
+
+    result = health._check_background_tasks()
+
+    assert result.status == "ok"
+    assert result.scheduler.status == "ok"
+
+
+def test_background_task_health_fails_when_scheduler_is_stale(monkeypatch) -> None:
+    from app.routers import health
+
+    monkeypatch.setattr(health, "is_scheduler_healthy", lambda: False)
+
+    result = health._check_background_tasks()
+
+    assert result.status == "error"
+    assert result.scheduler.status == "error"
 
 
 def test_health_check_has_no_other_api_prefix() -> None:
