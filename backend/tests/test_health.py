@@ -92,18 +92,31 @@ def test_health_check_reports_degraded_dependencies(monkeypatch) -> None:
     }
 
 
-def test_database_health_refuses_non_prisma_host(monkeypatch) -> None:
+def test_database_health_checks_self_hosted_postgres(monkeypatch) -> None:
     from app.routers import health
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, traceback):
+            return False
+
+        def execute(self, statement):
+            return None
 
     monkeypatch.setattr(
         health,
         "engine",
-        SimpleNamespace(url=make_url("postgresql+pg8000://user:password@localhost/lifeos")),
+        SimpleNamespace(
+            url=make_url("postgresql+pg8000://user:password@localhost/lifeos"),
+            connect=Connection,
+        ),
     )
 
     result = health._check_database()
 
-    assert result == health.DatabaseHealthComponent(status="error", provider="other")
+    assert result == health.DatabaseHealthComponent(status="ok", provider="postgresql")
 
 
 def test_database_health_checks_prisma_host(monkeypatch) -> None:

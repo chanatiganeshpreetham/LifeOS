@@ -55,9 +55,7 @@ def test_normalizes_explicit_psycopg_driver_urls() -> None:
 
 
 def test_parses_percent_encoded_password_with_special_characters() -> None:
-    url = normalize_database_url(
-        "postgresql+psycopg://user:p%40%40ss@db.example.com/lifeos"
-    )
+    url = normalize_database_url("postgresql+psycopg://user:p%40%40ss@db.example.com/lifeos")
 
     assert url.password == "p@@ss"
     assert "p%40%40ss@" in url.render_as_string(hide_password=False)

@@ -22,7 +22,7 @@ The frontend build-tool versions are newer than the original April 2025 architec
 
 - Docker Desktop with Docker Compose
 - Node.js 20 or newer and npm
-- Python 3.12 (for running backend checks outside Docker)
+- Python 3.12 (only needed to run backend commands directly on the host; Docker uses Python 3.12)
 
 For backend work directly on the host, create and activate a virtual environment from the project root:
 
@@ -55,22 +55,64 @@ The frontend is served at <http://localhost:5173>. The Vite development proxy fo
 
 The local app serves on `http://localhost:5173`. Auth0 Universal Login handles sign-in, sign-up, and password recovery. In the Auth0 application's settings, add `http://localhost:5173` to **Allowed Callback URLs**, **Allowed Logout URLs**, and **Allowed Web Origins**. Keep any other existing URLs in those fields; separate URLs with commas. Auth0 treats `localhost` and `127.0.0.1` as different callback URLs.
 
-The API health endpoint at `/api/v1/health` reports backend, Prisma Postgres, Auth0 OpenID configuration, and the in-process scheduled-job status. Its database check fails if `DATABASE_URL` is not a Prisma Postgres host. The frontend health card also reports API and scheduled-job availability.
+### Production deployment on Ubuntu with existing PostgreSQL and Nginx
 
-The example `.env` values are for local development only. The backend needs `AUTH0_DOMAIN`, `AUTH0_CLIENT_ID`, and `AUTH0_AUDIENCE`; the frontend needs `VITE_AUTH0_DOMAIN`, `VITE_AUTH0_CLIENT_ID`, and `VITE_AUTH0_AUDIENCE`. The sample contains the current LifeOS Auth0 tenant's public configuration. Before production, configure non-default `SECRET_KEY`, `DATABASE_URL`, and `FRONTEND_URL` values, and set production Auth0 callback/origin URLs. Never commit real `.env` files or secrets.
+The production Compose stack builds the API and static frontend images. It binds the frontend to `127.0.0.1:8080`; the included Nginx site file is a template for the host's Nginx and proxies traffic to that port. The API is reachable only from the Docker network. PostgreSQL remains on the host.
+
+From the cloned repository on the VPS:
+
+```bash
+cp .env.production.example .env.production
+nano .env.production
+```
+
+Set the domain, Auth0 values, a random `SECRET_KEY` of at least 32 characters, SMTP credentials, and a `DATABASE_URL` for the PostgreSQL role/database you created. For PostgreSQL on the VPS, use `host.docker.internal` as the hostname and make sure PostgreSQL accepts connections from the Docker bridge network. URL-encode reserved characters in credentials. Production startup requires SMTP configuration; without it the API refuses to start.
+
+Build and start the stack:
+
+```bash
+docker compose --env-file .env.production -f docker-compose.prod.yml up --build -d
+docker compose --env-file .env.production -f docker-compose.prod.yml logs -f api
+```
+
+Copy `nginx/lifeos.conf` to `/etc/nginx/sites-available/lifeos`, replace `lifeos.example.com`, enable the site, and validate/reload Nginx. Then configure TLS for the domain with your certificate tooling and update the site to serve HTTPS. Auth0 must allow the production URL as a callback, logout URL, and web origin. After changing any `AUTH0_*` frontend values, rebuild the frontend image with the first command above.
+
+The API applies Alembic migrations to your self-hosted PostgreSQL database before starting. Check `https://your-domain/api/v1/health` to confirm the database connection. The frontend health card also reports API and scheduled-job availability.
 
 ## Authentication
 
 React obtains Auth0 access tokens for the LifeOS API. FastAPI verifies their RS256 signatures using the Auth0 tenant's JWKS, and checks issuer and audience before authorizing requests. On a user's first sign-in, the app sends the Auth0 ID token alongside the API access token to initialize their PostgreSQL profile; FastAPI independently verifies the ID token signature, issuer, client audience, and matching subject before using its profile claims. Existing local-password registration, login, email-verification, and password-reset API endpoints have been replaced; account recovery is handled by Auth0 Universal Login. Auth0 tokens are kept in the SDK's in-memory cache rather than browser local storage.
 
-For host-based development without Docker, configure `.env` with a PostgreSQL URL for a database role you control, then run the migration from `backend`:
+For host-based development without Docker, install Python 3.12 (Ubuntu 22.04's default Python is older), create a virtual environment, and install the backend dependencies:
 
-```powershell
-Set-Location backend
-..\.venv\Scripts\python.exe -m alembic upgrade head
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r backend/requirements-dev.txt
 ```
 
-In separate PowerShell terminals, start the API and frontend:
+Configure `.env` with a PostgreSQL URL for a database role you control, then run the migration from `backend`:
+
+```bash
+cd backend
+python -m alembic upgrade head
+```
+
+On Linux, from the repository root, start the API and frontend in separate terminals:
+
+```bash
+cd backend
+source ../.venv/bin/activate
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+```bash
+cd frontend
+npm ci
+npm run dev
+```
+
+On Windows, use separate PowerShell terminals:
 
 ```powershell
 Set-Location backend

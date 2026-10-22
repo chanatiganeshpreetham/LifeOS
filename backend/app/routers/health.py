@@ -22,7 +22,7 @@ class HealthComponent(BaseModel):
 
 
 class DatabaseHealthComponent(HealthComponent):
-    provider: Literal["prisma_postgres", "other"]
+    provider: Literal["postgresql", "prisma_postgres", "other"]
 
 
 class BackgroundTasksHealth(BaseModel):
@@ -44,12 +44,12 @@ class HealthResponse(BaseModel):
 
 def _check_database() -> DatabaseHealthComponent:
     host = (engine.url.host or "").lower()
-    provider: Literal["prisma_postgres", "other"] = (
-        "prisma_postgres" if host == "db.prisma.io" or host.endswith(".db.prisma.io") else "other"
+    is_postgres = engine.url.drivername.startswith("postgres")
+    provider: Literal["postgresql", "prisma_postgres", "other"] = (
+        "prisma_postgres"
+        if host == "db.prisma.io" or host.endswith(".db.prisma.io")
+        else "postgresql" if is_postgres else "other"
     )
-    if provider != "prisma_postgres":
-        logger.error("Database health check refused non-Prisma PostgreSQL host")
-        return DatabaseHealthComponent(status="error", provider=provider)
 
     try:
         with engine.connect() as connection:
