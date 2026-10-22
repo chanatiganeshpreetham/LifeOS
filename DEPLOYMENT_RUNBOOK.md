@@ -1,4 +1,4 @@
-# VPS Deployment Runbook
+﻿# VPS Deployment Runbook
 
 This runbook documents a fresh LifeOS deployment on Ubuntu and a repeatable update process. It covers SSH, Docker/Compose, host PostgreSQL, domains/DNS, Nginx, TLS, production secrets, Git branches, and troubleshooting.
 
@@ -296,8 +296,12 @@ Auth0 checks callback URLs exactly. This app uses the site origin as its redirec
 
 ## 14. Start the app and issue HTTPS
 
-Start services; the API runs Alembic migrations before Uvicorn:
+For the first deployment, take a database dump before creating/changing schema, then explicitly apply Alembic migrations and start the services:
 
+    chmod +x backup-db.sh deploy.sh
+    ./backup-db.sh lifeos
+    docker compose --env-file .env.production -f docker-compose.prod.yml build
+    docker compose --env-file .env.production -f docker-compose.prod.yml run --rm --no-deps api alembic upgrade head
     docker compose --env-file .env.production -f docker-compose.prod.yml up -d
     docker compose --env-file .env.production -f docker-compose.prod.yml ps
     docker compose --env-file .env.production -f docker-compose.prod.yml logs --tail=100 api
@@ -339,6 +343,45 @@ Open the HTTPS URL, sign in through Auth0, and test an API-backed page. Confirm 
 
 ## 16. Deploy a later code update
 
+The repository includes `deploy.sh` for a checked release. Commit/push the script and Compose image-tag changes first. On the VPS, make it executable once if the Git checkout does not preserve the executable bit:
+
+    cd /opt/lifeos
+    chmod +x deploy.sh backup-db.sh
+
+Before committing the script from your development machine, mark it executable in Git so fresh clones can run it directly:
+
+    git add --chmod=+x deploy.sh backup-db.sh
+    git commit -m "Add automated deployment and database backups"
+    git push origin main
+
+Then deploy a branch and a unique release version in one command:
+
+    ./deploy.sh main v1.2.0
+
+The version becomes the Docker image tag; it does not create or push a Git tag. Use a new version each release. The script checks for a clean source tree, fetches/switches/fast-forwards the named remote branch, validates Compose, builds version-tagged images with Compose concurrency limited to one, and compares the database's applied Alembic heads with the code's migration heads. If a migration is pending, it first creates a compressed database dump, then applies the migration with a one-off API container before replacing the running services. If no migration is pending, it skips both the dump and migration. Finally it waits up to three minutes for the API health endpoint to report `status=ok`. If migration fails, the old API remains running and the dump is retained; if health fails after replacement, it prints container status/API logs and does not automatically roll back.
+
+The script defaults to the LifeOS production Compose file, `.env.production`, the `lifeos` database, and the local API health URL. For another app, copy/adapt the script for that app's Compose file, service image names, database (or set `DEPLOY_DATABASE_NAME=none`), health endpoint, and port. It is not a universal deployer for arbitrary Compose projects without those adjustments.
+
+Both migration-safety dumps and scheduled dumps are compressed under `.deploy-backups/` by `backup-db.sh`. The script gives `pg_dump` the lowest I/O priority (`ionice -c3`) and lowest CPU priority (`nice -n 19`), prevents overlapping runs with `flock`, and retains only the three newest dump files for that database. Dumps have mode 600 and the directory mode 700. This retention is a convenience, not an off-server disaster-recovery copy; copy important backups off the VPS if you need protection from disk/server loss.
+
+To schedule a weekly backup, install a root cron entry (adjust the repository path and DB name):
+
+    chmod +x /opt/lifeos/backup-db.sh
+    cat > /etc/cron.d/lifeos-db-backup <<'EOF'
+    SHELL=/bin/bash
+    PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+    30 3 * * 0 root /opt/lifeos/backup-db.sh lifeos
+    EOF
+    chmod 644 /etc/cron.d/lifeos-db-backup
+
+This runs every Sunday at 03:30 VPS local time. The weekly job and migration backups share the same three-file retention pool, so the newest three backups total are kept. Confirm the cron service is active with `systemctl status cron`; inspect cron activity with `grep CRON /var/log/syslog`.
+
+Useful overrides for a customized copy are `DEPLOY_COMPOSE_FILE`, `DEPLOY_ENV_FILE`, `DEPLOY_APP_NAME`, `DEPLOY_IMAGE_PREFIX`, `DEPLOY_DATABASE_NAME`, `DEPLOY_BACKUP_DIR`, and `DEPLOY_HEALTHCHECK_URL`. Example for an app without a local PostgreSQL backup:
+
+    DEPLOY_DATABASE_NAME=none DEPLOY_HEALTHCHECK_URL=http://127.0.0.1:8081/health ./deploy.sh main v2.4.1
+
+The manual Git/Compose process below remains available if a deployment needs to be inspected or performed step by step.
+
 SSH to the VPS and enter the repo root:
 
     ssh root@YOUR_VPS_PUBLIC_IP
@@ -366,7 +409,7 @@ Validate and deploy:
     docker compose --env-file .env.production -f docker-compose.prod.yml ps
     docker compose --env-file .env.production -f docker-compose.prod.yml logs --tail=100 api
 
-Migrations run at API startup. Check health and the changed feature. If Auth0 build values or other frontend build args changed, rebuild/recreate:
+For a manual migration release, take a backup with `./backup-db.sh lifeos`, then run `docker compose --env-file .env.production -f docker-compose.prod.yml run --rm --no-deps api alembic upgrade head` before starting/recreating the API. The API container itself does not run migrations on startup. Prefer `./deploy.sh BRANCH VERSION` for the guarded flow. Check health and the changed feature. If Auth0 build values or other frontend build args changed, rebuild/recreate:
 
     docker compose --env-file .env.production -f docker-compose.prod.yml up -d --build --force-recreate
 
@@ -411,6 +454,14 @@ On a shared VPS, give each app its own repository directory, Compose project, en
 For an already configured LifeOS VPS:
 
 The current VPS path from this conversation is `/root/lifeos/LifeOS`. Use that path for this server. `/opt/lifeos` below is the example path for a new installation.
+
+Use the automated command after the script/Compose changes are committed and pulled to the server:
+
+    cd /root/lifeos/LifeOS
+    chmod +x deploy.sh
+    ./deploy.sh main v1.2.0
+
+Replace `main` with the deployment branch and `v1.2.0` with a new version for each release.
 
     cd /opt/lifeos
     git status --short

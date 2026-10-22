@@ -12,7 +12,7 @@ export function ApiHealthStatus() {
     { name: 'Frontend → API', status: data ? 'ok' : error ? 'error' : 'loading' },
     { name: 'Backend API', status: data?.checks.backend.status ?? (error ? 'error' : 'loading') },
     {
-      name: 'Prisma Postgres',
+      name: 'PostgreSQL',
       status: data?.checks.database.status ?? (error ? 'unknown' : 'loading'),
     },
     { name: 'Auth0', status: data?.checks.auth0.status ?? (error ? 'unknown' : 'loading') },

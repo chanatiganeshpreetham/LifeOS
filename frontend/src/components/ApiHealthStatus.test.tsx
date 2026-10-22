@@ -54,7 +54,7 @@ describe('ApiHealthStatus', () => {
 
     expect(await screen.findByText('Frontend → API: Connected')).toBeInTheDocument()
     expect(await screen.findByText('Backend API: Connected')).toBeInTheDocument()
-    expect(await screen.findByText('Prisma Postgres: Connected')).toBeInTheDocument()
+    expect(await screen.findByText('PostgreSQL: Connected')).toBeInTheDocument()
     expect(await screen.findByText('Auth0: Connected')).toBeInTheDocument()
     expect(await screen.findByText('Scheduled jobs: Connected')).toBeInTheDocument()
   })
@@ -77,7 +77,7 @@ describe('ApiHealthStatus', () => {
 
     renderStatus()
 
-    expect(await screen.findByText('Prisma Postgres: Unavailable')).toBeInTheDocument()
+    expect(await screen.findByText('PostgreSQL: Unavailable')).toBeInTheDocument()
     expect(screen.getByText('One or more backend services are unavailable.')).toBeInTheDocument()
   })
 

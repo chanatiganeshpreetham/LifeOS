@@ -14,7 +14,7 @@ The frontend build-tool versions are newer than the original April 2025 architec
 
 - Frontend: React 18, TypeScript, Vite 6, Tailwind CSS 4, React Router 6, TanStack Query 5
 - Backend: Python 3.12, FastAPI, Pydantic 2, synchronous SQLAlchemy 2, Alembic, pure-Python pg8000 PostgreSQL driver
-- Database: Prisma Postgres
+- Database: PostgreSQL (self-hosted or managed)
 - Local email testing: Mailpit
 - Local development: Docker Compose
 
@@ -38,11 +38,11 @@ From the repository root in PowerShell:
 
 ```powershell
 Copy-Item .env.example .env
-# Set DATABASE_URL in .env to your Prisma Postgres connection URL before continuing.
+# Set DATABASE_URL in .env to your PostgreSQL connection URL before continuing.
 docker compose up --build
 ```
 
-The API (which applies Alembic migrations to the configured Prisma Postgres database at startup) and Mailpit for local email testing start in Compose. Scheduled reminders, finance alerts, and pending browser push notifications run inside the API process, so no Redis server or worker services are required. Run the frontend separately:
+The API and Mailpit for local email testing start in Compose. Scheduled reminders, finance alerts, and pending browser push notifications run inside the API process, so no Redis server or worker services are required. Run the frontend separately:
 
 ```powershell
 Copy-Item frontend\.env.example frontend\.env.local
@@ -60,6 +60,8 @@ The local app serves on `http://localhost:5173`. Auth0 Universal Login handles s
 The production Compose stack builds the API and static frontend images. It binds the frontend to `127.0.0.1:8080`; the included Nginx site file is a template for the host's Nginx and proxies traffic to that port. The API is reachable only from the Docker network. PostgreSQL remains on the host.
 
 See the detailed [VPS deployment runbook](./DEPLOYMENT_RUNBOOK.md) for fresh-server setup, DNS, PostgreSQL, HTTPS, and code updates.
+
+For a checked one-command release on an already configured VPS, the runbook also documents `./deploy.sh BRANCH VERSION`.
 
 From the cloned repository on the VPS:
 
@@ -79,7 +81,7 @@ docker compose --env-file .env.production -f docker-compose.prod.yml logs -f api
 
 Copy `nginx/lifeos.conf` to `/etc/nginx/sites-available/lifeos`, replace `lifeos.example.com`, enable the site, and validate/reload Nginx. Then configure TLS for the domain with your certificate tooling and update the site to serve HTTPS. Auth0 must allow the production URL as a callback, logout URL, and web origin. After changing any `AUTH0_*` frontend values, rebuild the frontend image with the first command above.
 
-The API applies Alembic migrations to your self-hosted PostgreSQL database before starting. Check `https://your-domain/api/v1/health` to confirm the database connection. The frontend health card also reports API and scheduled-job availability.
+The API uses your self-hosted PostgreSQL database. For production, apply migrations through `./deploy.sh BRANCH VERSION`, which takes a database backup first when a migration is pending. Check `https://your-domain/api/v1/health` to confirm the database connection. The frontend health card also reports API and scheduled-job availability.
 
 ## Authentication
 
@@ -168,9 +170,9 @@ The authenticated Today dashboard summarizes pending and upcoming tasks, upcomin
 
 The task API is available under `/api/v1/tasks` (including `/dashboard` for compact dashboard task summaries); reminders and notification APIs are under `/api/v1/reminders` (including `/reminders/dashboard`), `/api/v1/notifications`, and `/api/v1/push`. Finance APIs are under `/api/v1/finance` (including `/dashboard-summary` for daily/monthly spend and upcoming card due dates); health tracking is under `/api/v1/health`, notes are under `/api/v1/notes`, and Daybook is under `/api/v1/daybook` (date-bounded activity feed plus diary-entry CRUD). These endpoints require a bearer access token. Apply database migrations after configuring PostgreSQL; revisions `0003_tasks`, `0004_reminders_push`, `0005_finance`, `0006_health_notes`, `0008_daybook`, and `0009_dashboard_task_index` add the corresponding product tables, indexes, and notification types.
 
-### Prisma Postgres
+### PostgreSQL
 
-Set `DATABASE_URL` in the ignored project-root `.env` to Prisma's direct PostgreSQL connection URL, including its `sslmode=require` option. URL-encode reserved characters in the username or password. Do not use a Prisma Accelerate `prisma://` URL. The API applies the schema on startup; to apply it manually:
+Set `DATABASE_URL` in the ignored project-root `.env` to your PostgreSQL connection URL. URL-encode reserved characters in the username or password. In production, the API does not apply schema changes at startup. Use the deployment script to back up and apply pending migrations, or take a backup before manually running Alembic:
 
 ```powershell
 Set-Location backend
