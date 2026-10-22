@@ -59,6 +59,8 @@ The local app serves on `http://localhost:5173`. Auth0 Universal Login handles s
 
 The production Compose stack builds the API and static frontend images. It binds the frontend to `127.0.0.1:8080`; the included Nginx site file is a template for the host's Nginx and proxies traffic to that port. The API is reachable only from the Docker network. PostgreSQL remains on the host.
 
+See the detailed [VPS deployment runbook](./DEPLOYMENT_RUNBOOK.md) for fresh-server setup, DNS, PostgreSQL, HTTPS, and code updates.
+
 From the cloned repository on the VPS:
 
 ```bash
