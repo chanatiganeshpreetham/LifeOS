@@ -254,9 +254,9 @@ export function DashboardPage({ onSignOut, signOutError }: DashboardPageProps) {
             </div>
             {finance.data?.monthly_spending_limit != null && (
               <p className="dashboard-empty-copy">
-                {finance.data.monthly_spending_limit - Number(finance.data.month_spent) >= 0
-                  ? `${money(finance.data.monthly_spending_limit - Number(finance.data.month_spent))} left in your monthly budget.`
-                  : `${money(Number(finance.data.month_spent) - finance.data.monthly_spending_limit)} over your monthly budget.`}
+                {Number(finance.data.monthly_spending_limit) - Number(finance.data.month_spent) >= 0
+                  ? `${money(Number(finance.data.monthly_spending_limit) - Number(finance.data.month_spent))} left in your monthly budget.`
+                  : `${money(Number(finance.data.month_spent) - Number(finance.data.monthly_spending_limit))} over your monthly budget.`}
               </p>
             )}
           </div>
