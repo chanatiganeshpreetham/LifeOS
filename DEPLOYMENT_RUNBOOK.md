@@ -360,6 +360,94 @@ Then deploy a branch and a unique release version in one command:
 
 The version becomes the Docker image tag; it does not create or push a Git tag. Use a new version each release. The script checks for a clean source tree, fetches/switches/fast-forwards the named remote branch, validates Compose, builds version-tagged images with Compose concurrency limited to one, and compares the database's applied Alembic heads with the code's migration heads. If a migration is pending, it first creates a compressed database dump, then applies the migration with a one-off API container before replacing the running services. If no migration is pending, it skips both the dump and migration. Finally it waits up to three minutes for the API health endpoint to report `status=ok`. If migration fails, the old API remains running and the dump is retained; if health fails after replacement, it prints container status/API logs and does not automatically roll back.
 
+### One-click GitHub Actions deployment
+
+The repository includes `.github/workflows/deploy-production.yml`. After the setup below, deploy from GitHub using **Actions → Deploy production → Run workflow**, enter the Git branch and a new version such as `v1.3.0`, then click **Run workflow**. The workflow SSHes into the VPS and starts the existing `deploy.sh`; the VPS still fetches source, builds Docker images, backs up before pending migrations, applies migrations, and checks health. The workflow does not build images on a GitHub runner or run a permanent runner on the VPS.
+
+The manual workflow uses GitHub's `workflow_dispatch` trigger, so the workflow file must first be committed to the repository's default branch. See [GitHub's instructions for manually running a workflow](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/manually-run-a-workflow).
+
+#### A. Give the VPS read-only access to the private repository
+
+The deployment script runs `git fetch` on the VPS. Configure its GitHub SSH access before changing the repository to private. On the VPS, as root:
+
+    install -d -m 700 /root/.ssh
+    ssh-keygen -t ed25519 -C "lifeos-vps-readonly" -f /root/.ssh/lifeos_github_deploy -N ""
+    chmod 600 /root/.ssh/lifeos_github_deploy
+    chmod 644 /root/.ssh/lifeos_github_deploy.pub
+    cat /root/.ssh/lifeos_github_deploy.pub
+
+Copy the displayed **public** key. In GitHub, open the LifeOS repository, go to **Settings → Deploy keys → Add deploy key**, paste it, and leave **Allow write access** unchecked. Then configure root's SSH client to use this key (inspect `/root/.ssh/config` first so you don't overwrite existing entries):
+
+    nano /root/.ssh/config
+
+Add:
+
+    Host github.com
+        HostName github.com
+        User git
+        IdentityFile /root/.ssh/lifeos_github_deploy
+        IdentitiesOnly yes
+
+Save it, then set GitHub's host key in `/root/.ssh/known_hosts`. Follow GitHub's current [SSH host-key fingerprint guidance](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/githubs-ssh-key-fingerprints) and verify the fingerprint before trusting the key. Test the repository key and switch the existing checkout's remote to SSH:
+
+    ssh -T git@github.com
+    cd /root/lifeos/LifeOS
+    git remote set-url origin git@github.com:chanatiganeshpreetham/LifeOS.git
+    git ls-remote origin HEAD
+
+`ssh -T` may report that GitHub does not provide shell access; successful key authentication is what matters. Do not copy `/root/.ssh/lifeos_github_deploy` (the private key) into GitHub or into the Actions workflow.
+
+#### B. Create a restricted SSH account for the workflow
+
+On the VPS, create a deployment account that can SSH in and run only the release script through sudo:
+
+    adduser --disabled-password --gecos "" lifeos-deploy
+    install -d -m 700 -o lifeos-deploy -g lifeos-deploy /home/lifeos-deploy/.ssh
+    nano /home/lifeos-deploy/.ssh/authorized_keys
+
+Leave that file open. On your Windows development machine, generate a **separate** SSH key for GitHub Actions (press Enter twice when asked for a passphrase so the non-interactive runner can use it):
+
+    ssh-keygen -t ed25519 -C "lifeos-github-actions" -f "$env:USERPROFILE\.ssh\lifeos_github_actions"
+
+Display `lifeos_github_actions.pub` and copy its single public-key line into the VPS `authorized_keys` file. Never share or paste `lifeos_github_actions` without `.pub`; that is the private key.
+
+On the VPS, finish the account permissions and allow only the deploy script via sudo:
+
+    chown lifeos-deploy:lifeos-deploy /home/lifeos-deploy/.ssh/authorized_keys
+    chmod 600 /home/lifeos-deploy/.ssh/authorized_keys
+    printf '%s\n' 'lifeos-deploy ALL=(root) NOPASSWD: /root/lifeos/LifeOS/deploy.sh' > /etc/sudoers.d/lifeos-deploy
+    chmod 440 /etc/sudoers.d/lifeos-deploy
+    visudo -cf /etc/sudoers.d/lifeos-deploy
+
+Keep the workflow key separate from the VPS-to-GitHub read-only key in section A. Do not enable passwordless sudo for the whole account.
+
+#### C. Add GitHub Actions connection settings
+
+In the repository, open **Settings → Secrets and variables → Actions**. Add these repository secrets:
+
+| Name | Value |
+|---|---|
+| `VPS_HOST` | VPS public IP address (use the same value when preparing its host-key entry below) |
+| `VPS_USER` | `lifeos-deploy` |
+| `VPS_SSH_PRIVATE_KEY` | Entire contents of `lifeos_github_actions` (without `.pub`) |
+| `VPS_KNOWN_HOSTS` | Verified SSH host-key line for the VPS |
+
+Add this repository **variable** (not secret):
+
+| Name | Value |
+|---|---|
+| `VPS_APP_DIR` | `/root/lifeos/LifeOS` |
+
+To prepare the VPS host-key line, on your Windows machine run `ssh-keyscan -t ed25519 YOUR_VPS_PUBLIC_IP` and compare its fingerprint with `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` run on the VPS. Only store the host-key line in `VPS_KNOWN_HOSTS` after the fingerprints match. Use the same IP in `VPS_HOST` so strict host checking matches.
+
+#### D. Make the repository private and deploy
+
+First check that no secrets were committed to Git history. On GitHub, open **Settings → General → Danger Zone → Change repository visibility → Make private**. Existing public forks remain public, and changing visibility does not remove copies or secrets already present in Git history; see [GitHub's visibility-change guidance](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/managing-repository-settings/setting-repository-visibility).
+
+Commit and push this workflow file to the default branch. In **Actions**, select **Deploy production**, click **Run workflow**, enter `main` and a new image version, then run it. The workflow serializes deployments and refuses malformed branch/version inputs. If GitHub asks you to enable Actions, enable them for the repository.
+
+GitHub Free currently includes 2,000 Actions minutes and 500 MB of artifact storage per month for personal accounts. Existing CI runs also use Actions minutes. To prevent billable overage, go to `https://github.com/settings/billing` → **Budgets and alerts**, create an **Actions** product budget, and enable **Stop usage when budget limit is reached**. Jobs can stop after the free allowance is exhausted, but no overage will be incurred while the hard stop applies. Check [current Actions billing details](https://docs.github.com/en/billing/concepts/product-billing/github-actions) for your account's allowance.
+
 The script defaults to the LifeOS production Compose file, `.env.production`, the `lifeos` database, and the local API health URL. For another app, copy/adapt the script for that app's Compose file, service image names, database (or set `DEPLOY_DATABASE_NAME=none`), health endpoint, and port. It is not a universal deployer for arbitrary Compose projects without those adjustments.
 
 Both migration-safety dumps and scheduled dumps are compressed under `.deploy-backups/` by `backup-db.sh`. The script gives `pg_dump` the lowest I/O priority (`ionice -c3`) and lowest CPU priority (`nice -n 19`), prevents overlapping runs with `flock`, and retains only the three newest dump files for that database. Dumps have mode 600 and the directory mode 700. This retention is a convenience, not an off-server disaster-recovery copy; copy important backups off the VPS if you need protection from disk/server loss.
