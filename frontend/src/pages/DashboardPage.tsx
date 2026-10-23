@@ -252,17 +252,13 @@ export function DashboardPage({ onSignOut, signOutError }: DashboardPageProps) {
               </span>
               <span><small>Spent today</small><strong>{money(finance.data?.today_spent ?? 0)}</strong></span>
             </div>
-            {finance.data?.cards_due.length ? (
-              <div className="dashboard-card-due-list">
-                <h3>Card payments due soon</h3>
-                {finance.data.cards_due.map((card) => (
-                  <div className="dashboard-card-due" key={card.id}>
-                    <span><strong>{card.card_name}</strong><small>{card.bank_name}{card.last_four_digits ? ` ··${card.last_four_digits}` : ''} · {money(card.current_balance)}</small></span>
-                    <time dateTime={card.due_date}>{card.days_until_due === 0 ? 'Due today' : `In ${card.days_until_due} days`}</time>
-                  </div>
-                ))}
-              </div>
-            ) : <p className="dashboard-empty-copy">No card payments due in the next 30 days.</p>}
+            {finance.data?.monthly_spending_limit != null && (
+              <p className="dashboard-empty-copy">
+                {finance.data.monthly_spending_limit - Number(finance.data.month_spent) >= 0
+                  ? `${money(finance.data.monthly_spending_limit - Number(finance.data.month_spent))} left in your monthly budget.`
+                  : `${money(Number(finance.data.month_spent) - finance.data.monthly_spending_limit)} over your monthly budget.`}
+              </p>
+            )}
           </div>
         </Widget>
 

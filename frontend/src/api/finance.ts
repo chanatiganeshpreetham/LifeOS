@@ -23,6 +23,9 @@ export interface FinanceExpense {
   amount: Amount
   currency: string
   merchant: string | null
+  payment_method: string | null
+  is_monthly_emi: boolean
+  emi_end_date: string | null
   notes: string | null
   expense_date: string
   created_at: string
@@ -154,6 +157,9 @@ export function createFinanceExpense(
     credit_card_id: string | null
     amount: string
     merchant: string | null
+    payment_method: 'debit_card' | 'credit_card' | 'cash' | 'bank_transfer' | 'upi' | 'other'
+    is_monthly_emi: boolean
+    emi_end_date: string | null
     notes: string | null
     expense_date: string
   },

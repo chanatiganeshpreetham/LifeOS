@@ -53,7 +53,7 @@ npm.cmd run dev
 
 The frontend is served at <http://localhost:5173>. The Vite development proxy forwards `/api` requests to FastAPI on port 8000. The API health endpoint is <http://localhost:8000/api/v1/health>; interactive API documentation is at <http://localhost:8000/docs>. In Compose mode, Mailpit is available at <http://localhost:8025> for other backend email notifications.
 
-The local app serves on `http://localhost:5173`. Auth0 Universal Login handles sign-in, sign-up, and password recovery. In the Auth0 application's settings, add `http://localhost:5173` to **Allowed Callback URLs**, **Allowed Logout URLs**, and **Allowed Web Origins**. Keep any other existing URLs in those fields; separate URLs with commas. Auth0 treats `localhost` and `127.0.0.1` as different callback URLs.
+The local app serves on `http://localhost:5173`. Auth0 Universal Login handles sign-in, sign-up, and password recovery. This app sends `http://localhost:5173/` as its callback and logout URL; add that exact value to **Allowed Callback URLs** and **Allowed Logout URLs**. Add `http://localhost:5173` (no trailing slash) to **Allowed Web Origins**. Keep production URLs in their allowlists. The frontend values in `frontend/.env.local` and backend values in the project `.env` must point to the same Auth0 tenant and API: `VITE_AUTH0_DOMAIN` must match `AUTH0_DOMAIN`, `VITE_AUTH0_AUDIENCE` must match `AUTH0_AUDIENCE`, and `VITE_AUTH0_CLIENT_ID` must match `AUTH0_CLIENT_ID`. Restart the frontend and API after changing environment values. Auth0 treats `localhost` and `127.0.0.1` as different hosts.
 
 ### Production deployment on Ubuntu with existing PostgreSQL and Nginx
 

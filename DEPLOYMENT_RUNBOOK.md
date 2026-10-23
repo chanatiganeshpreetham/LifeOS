@@ -288,7 +288,7 @@ If the link already exists, inspect it with ls -l /etc/nginx/sites-enabled/lifeo
 In Auth0 Dashboard:
 
 1. Open Applications → Applications → LifeOS Single Page Application → Settings.
-2. Under Application URIs, add the exact origin https://lifeos.example.in to Allowed Callback URLs, Allowed Logout URLs, and Allowed Web Origins.
+2. Under Application URIs, add `https://lifeos.example.in/` to Allowed Callback URLs and Allowed Logout URLs, and add `https://lifeos.example.in` (no trailing slash) to Allowed Web Origins. These match the frontend redirect and logout URLs.
 3. Preserve localhost entries if needed for development, then save.
 4. Open Applications → APIs → LifeOS API and confirm its Identifier equals AUTH0_AUDIENCE in .env.production.
 

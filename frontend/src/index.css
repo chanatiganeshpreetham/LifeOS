@@ -1270,6 +1270,18 @@ kbd {
   font-size: 0.7rem;
 }
 
+.finance-budget-status { margin-top: 1.25rem; display: grid; grid-template-columns: 1fr auto; gap: .5rem .8rem; align-items: center; }
+.finance-budget-status > div:first-child span { color: var(--muted, #667085); }
+.finance-budget-status .finance-progress { grid-column: 1 / -1; height: .65rem; }
+.finance-goal-row { display: flex; flex-wrap: wrap; gap: .6rem 1.5rem; margin-top: 1rem; color: var(--muted, #667085); }
+.finance-goal-row strong { color: var(--text, #20242c); margin-left: .25rem; }
+.finance-advanced { margin: 1.5rem 0; }
+.finance-advanced > summary { cursor: pointer; padding: 1rem 1.2rem; border: 1px solid var(--border, #e5e7eb); border-radius: 12px; font-weight: 650; }
+.finance-advanced[open] > summary { margin-bottom: 1rem; }
+.finance-advanced h3 { margin-top: 1.5rem; }
+.finance-form .finance-checkbox { display: flex; flex-direction: row; align-items: center; gap: .6rem; }
+.finance-checkbox input { width: 1.1rem; min-height: 1.1rem; }
+
 .finance-columns {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

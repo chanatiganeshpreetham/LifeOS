@@ -44,8 +44,19 @@ class ExpenseCreate(BaseModel):
     credit_card_id: UUID | None = None
     amount: PositiveMoney
     merchant: Annotated[str | None, StringConstraints(strip_whitespace=True, max_length=200)] = None
+    payment_method: Literal["debit_card", "credit_card", "cash", "bank_transfer", "upi", "other"] | None = None
+    is_monthly_emi: bool = False
+    emi_end_date: date | None = None
     notes: Annotated[str | None, StringConstraints(max_length=10000)] = None
     expense_date: date
+
+    @model_validator(mode="after")
+    def validate_emi_end_date(self) -> "ExpenseCreate":
+        if self.is_monthly_emi and self.emi_end_date is None:
+            raise ValueError("An expected end date is required for a monthly EMI.")
+        if not self.is_monthly_emi and self.emi_end_date is not None:
+            raise ValueError("An EMI end date can only be set for a monthly EMI.")
+        return self
 
 
 class ExpenseUpdate(BaseModel):
@@ -53,6 +64,9 @@ class ExpenseUpdate(BaseModel):
     credit_card_id: UUID | None = None
     amount: PositiveMoney | None = None
     merchant: Annotated[str | None, StringConstraints(strip_whitespace=True, max_length=200)] = None
+    payment_method: Literal["debit_card", "credit_card", "cash", "bank_transfer", "upi", "other"] | None = None
+    is_monthly_emi: bool | None = None
+    emi_end_date: date | None = None
     notes: Annotated[str | None, StringConstraints(max_length=10000)] = None
     expense_date: date | None = None
 
@@ -73,6 +87,9 @@ class ExpenseResponse(BaseModel):
     amount: Decimal
     currency: str
     merchant: str | None
+    payment_method: str | None
+    is_monthly_emi: bool
+    emi_end_date: date | None
     notes: str | None
     expense_date: date
     created_at: datetime
