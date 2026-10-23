@@ -6,7 +6,6 @@ import { fetchFinanceDashboardSummary } from '../api/finance'
 import { fetchHealthToday, fetchSleepLogs } from '../api/healthTracking'
 import { fetchDashboardReminders } from '../api/reminders'
 import { createTask, fetchTaskDashboard } from '../api/tasks'
-import { ApiHealthStatus } from '../components/ApiHealthStatus'
 
 interface DashboardPageProps {
   onSignOut: () => void
@@ -289,9 +288,6 @@ export function DashboardPage({ onSignOut, signOutError }: DashboardPageProps) {
         <Link to="/notes"><span aria-hidden="true">✎</span><strong>Notes</strong><small>Ideas and things to remember</small></Link>
       </section>
 
-      <footer className="dashboard-footer">
-        <ApiHealthStatus />
-      </footer>
     </main>
   )
 }

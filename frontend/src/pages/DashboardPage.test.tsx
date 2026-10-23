@@ -24,10 +24,6 @@ vi.mock('../api/finance', () => ({ fetchFinanceDashboardSummary }))
 vi.mock('../api/healthTracking', () => ({ fetchHealthToday, fetchSleepLogs }))
 vi.mock('../api/reminders', () => ({ fetchDashboardReminders }))
 vi.mock('../api/tasks', () => ({ createTask, fetchTaskDashboard }))
-vi.mock('../components/ApiHealthStatus', () => ({
-  ApiHealthStatus: () => <div>API status</div>,
-}))
-
 import { DashboardPage } from './DashboardPage'
 
 function renderDashboard() {

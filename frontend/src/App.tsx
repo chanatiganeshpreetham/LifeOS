@@ -1,6 +1,5 @@
 import { Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom'
 import { useEffect, useRef, useState } from 'react'
-import { ApiHealthStatus } from './components/ApiHealthStatus'
 import { AuthProvider } from './auth/AuthProvider'
 import { useAuth } from './auth/context'
 import { NotificationsBell } from './components/NotificationsBell'
@@ -44,7 +43,6 @@ function HomePage() {
             Sign in
           </Link>
         </div>
-        <ApiHealthStatus />
       </section>
     </main>
   )
